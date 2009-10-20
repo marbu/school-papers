@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="iso-8859-2"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html>
+<head>
+<!--
+<link rel="stylesheet" href="http://www.fi.muni.cz/~kas/css/main.css" type="text/css" media="screen" />
+<link rel="stylesheet" href="http://www.fi.muni.cz/~kas/css/pv090ref.css" type="text/css" media="screen" />
+-->
+<title>Autentizační systémy</title>
+</head>
+<body>
+
+<div id="nadpis">
+<h1>Autentizační systémy</h1>
+<h2>Martin Bukatovič, xbukatov@fi.muni.cz</h2>
+</div>
+
+<h2>Obsah</h2>
+<ul>
+<li><a href="#kerb">Kerberos</a></li>
+<ul>
+    <li><a href="#kerb:princip">Princip fungování protokolu</a></li>
+    <li><a href="#kerb:auth">Průběh autentizace</a></li>
+    <li><a href="#kerb:impl">Dostupné implementace</a></li>
+    <li><a href="#kerb:conf">Instalace a konfigurace</a></li>
+    <li><a href="#kerb:note">Poznámky</a></li>
+</ul>
+<li><a href="#pam">PAM</a></li>
+<ul>
+    <li><a href="#pam:principy">Principy</a></li>
+    <li><a href="#pam:conf">Konfigurace</a></li>
+</ul>
+<li><a href="#literatura">Literatura</a></li>
+</ul>
+
+<h2 id="kerb">Kerberos</h2>
+<p>Kerberos je síťový autentizační protokol pracující na principu jednotného přihlašování mezi několika různými systémy. Jméno pochází z řecké mytologie, kde označuje bájného trojhlavého psa, jehož úkol bylo střežit vchod do podsvětí.</p>
+<p>Protokol byl vyvinut v rámci projektu Athena na MIT a první veřejně dostupná verze 4 pochází z roku 1987. V roce 1993 byla definována v <a href="http://tools.ietf.org/html/rfc1510">RFC1510</a> 5. verze protokolu. Dnes se používá aktualizovaná protokolu v5, která je popsána v <a href="http://tools.ietf.org/html/rfc4120">RFC4120</a> z roku 2005.</p>
+
+<h3 id="kerb:princip">Princip fungování protokolu</h3>
+<p>Kerberos řeší problém centrální autentizace v síťovém prostředí, kde uživatelé ze svých strojů přistupují k mnoha dalším službám dostupných přes síť. Cílem bylo vytvořit systém zajišťující:</p>
+
+<ul>
+<li>Bezpečnost - počítá se s nepřítelem ve vlastní sítí, odposlech kterékoli části komunikace nesmí umožnit její zneužití.</li>
+<li>Single Sing-On - uživatel zadává heslo jen jednou na začátku práce, další ověřování při přístupu k síťových službám probíhá automaticky.</li>
+<li>Centralizovanou správu - v síti existuje vyhrazený server, který zprostředkovává autentizaci mezi klienty a službami a plní tak úlohu důvěryhodné třetí strany.</li>
+</ul>
+
+<p>Úlohu důvěryhodného prostředníka plní centrální autentizační server, tzv. <acronym>KDC</acronym> (Key Distribution Center), které spravuje databázi všech hesel jak uživatelů tak služeb (jde o sdílené tajemství mezi uživatelem/službou a KDC). <em>Realm</em> pak označuje oblast spravovanou jedním KDC. Uživatele i služby identifikuje tzv. <em>principal</em>, který má tvar: <pre>primary/instance@REALM</pre>Kde <em>primary</em> je buď jméno uživatele nebo služby, <em>instance</em> je doplňující informace (např. adresa stroje, na kterém služba běží nebo nepovinná uživatelská role) a <em>realm</em> je jméno realmu, které se volí dle DNS domény.</p>
+
+<p>KDC je rozděleno na dva servery:</p>
+<ul>
+<li><acronym>AS</acronym> (Authentification Server) - ověřuje identitu uživatele.</li>
+<li><acronym>TGS</acronym> (Ticket Granting Server) - vydává lístky (tickets), které se používají k autentizaci u služeb místo hesla a neobsahují žádné tajné informace.</li>
+</ul>
+
+<h3 id="kerb:auth">Průběh autentizace</h3>
+<p>Při autentizaci se využívá tzv. <em>lístek</em> (ticket), který obsahuje session-key služby (pro kterou byl lístek vydán), principal uživatele a služby, časové razítko a dobu platnosti. Nakonec jsou všechny tyto informace zašifrovány pomocí hesla služby. Lístek je v rámci své životnosti znovupoužitelný.</p> 
+
+<p>Naopak <em>autentikátor</em> (authenticator) je použitelný pouze jednou, šifrovaný je pomocí session-key dané služby a obsahuje principal uživatele a časovou známku.</p>
+
+<p>Autentizace probíhá přibližně následujícím způsobem:</p>
+
+<ul>
+<li>Na počátku uživatelova sezení je spuštěn program <code>kinit</code>:
+<ol>
+<li><code>kinit</code> od uživatele vyžádá heslo</li>
+<li><code>kinit</code> pošle na AS žádost obsahující pouze <code>principal</code> uživatele</li>
+<li>pokud AS nalezne pro zaslaný principal záznam ve své databázi, odešle zpět <code>ticket-granting-ticket</code> a vygeneruje <code>ticket-granting-session-key</code>, který pošle zpět zašifrovaný pomocí hesla uživatele.</li>
+<li>pokud bylo zadané heslo správné, <code>kinit</code> získá <code>ticket-granting-ticket</code> a <code>ticket-granting-session-key</code> pro pozdější použití. Platnost ticket granting lísku je omezena na několik hodin a po jeho expiraci musí uživatel požádat o nový.</li>
+</ol>
+</li>
+
+<br/><li>Uživatel poprvé v tomto sezení spustí klienta kerberizované služby:
+<ol>
+<li>klient nejprve odešle žádost na TGS obsahující:
+<ul>
+<li><code>ticket-granting-authenticator</code> (šifrovaný pomocí <code>ticket-granting-session-key</code>)</li>
+<li><code>ticket-granting-ticket</code></li>
+<li>principal uživatele</li>
+<li>principal služby</li>
+</ul>
+</li>
+<li>TGS autentizuje uživatele (pomocí svého hesla rozšifruje <code>ticket-granting-ticket</code> a zněj pak získá <code>ticket-granting-session-key</code>, kterým se pokusí rozšifrovat <code>ticket-granting-authenticator</code> - pak lze porovnat takto získaný uživatelský principal s zaslaným a tím uživatele ověřit) a odešle zpět <code>serv-ticket</code> a <code>serv-session-key</code> pro danou službu, <code>serv-session-key</code> je zašifrovaný pomocí <code>ticket-granting-session-key</code></li>
+
+<li>klient uchová <code>serv-ticket</code> a <code>serv-session-key</code> pro další použití</li>
+<li>klient se autentizuje u služby jak je popsáno dále</li>
+</ol>
+</li>
+
+<br/><li>Uživatel spouští klienta kerberizované služby, který už má z dřívějška k dispozici <code>serv-ticket</code> i <code>serv-session-key</code>.</li>
+
+<ol>
+<li>klient nejdříve odešle žádost na server své služby obsahující:
+<ul>
+<li><code>authenticator</code> (šifrovaný pomocí <code>serv-session-key</code>)</li>
+<li><code>serv-ticket</code></li>
+<li>principal uživatele</li>
+</ul>
+</li>
+<li>server autentizuje uživatele a odešle zpět časovou známku (který získal z autentikátoru) zvětšenou o 1 a zašifrovanou pomocí <code>serv-session-key</code></li>
+<li>klient pomocí <code>serv-session-key</code> rozšifruje data od serveru služby a porovnáním časové známky jej autentizuje</li>
+<li>klient odešle na server služby svůj požadavek</li>
+</ul>
+
+<h3 id="kerb:impl">Dostupné imlementace</h3>
+<p>Mezi nejvýznamnější implementace protokolu Kebreros v5 patří:</p>
+<ul>
+<li><b><a href="http://web.mit.edu/kerberos/www/">MIT Kerberos</a></b><br/>
+Referenční implementace vyvinutá přímo na MIT. Od verze 4 byla licencována pod BSD licencí, ale její šíření mimo USA nebylo možné, protože kód z MIT obsahoval šifrovací algoritmus DES. V současnosti již toto omezení neplatí.
+</li>
+<li><b><a href="http://www.h5l.org/">Heimdal</a></b><br/>
+Z důvodů omezení vývozu šifrovacích technologií vznikla na Královském technologickém institutu v Stokholmu alternativní implementace, kterou bylo možné používat i mimo USA. Heimdal implementuje protokoly verze 4 a 5 a je kompatibilní s MIT verzí až na administrační utilitu kadmin, která nebyla součástí standardu. Heimdal je uvolněn pod BSD licencí.
+</li>
+</ul>
+
+<p>Některé další projekty implementující Kerberos:</p>
+<ul>
+<li><b>GNU Shishi</b><br/>
+Jde o projekt FSF vyvíjený pod GPLv3, zatím stále v raném stádiu vývoje.</li>
+<li><b>J2SE</b><br/>
+Součástí standardní knihovny jazyka Java je podpora pro klientskou a serverovou část protokolu Kerberos.</li> <!-- javax.security.auth.kerberos -->
+<li><b>Windows</b><br/>
+Kerberos je využit i v rámci tzv. <em>Active Directory</em> používaného ve sítích s Windows.</li>
+</ul>
+
+<h3 id="kerb:conf">Instalace a konfigurace</h3>
+<p>V distribuci Debian je třeba nainstalovat balíčky krb5-admin-server a krb5-kdc, které obsahují MIT implementaci Kerbera.</p>
+
+<p>Důležité konfigurační souboru jsou <code>krb5.conf</code>, který je hlavním konfiguračním souborem - ovlivňuje chování klientů i serveru, a <code>kdc.conf</code>, v kterém se nastavuje KDC server.</p>
+
+<h4>krb5.conf</h4>
+<p>Běžně se nachází v <code>/etc</code>, pokud neurčíme v proměnné prostředí KRB5_CONFIG jinak. Jednoduchý příklad:</p>
+
+<pre>
+# nastavení Kerberos knihovny
+[libdefaults]
+  # výchozí nastavení realmu pro klienty
+  default_realm = ATHENA.MIT.EDU
+  # použít DNS SRV záznam při hledání KDC serveru
+  dns_lookup_kdc = false
+  # použít DNS TXT záznam při určovaní realmu hostitele
+  dns_lookup_realm = false
+
+# nastavení pro jednotlivé realmy
+[realms]
+  ATHENA.MIT.EDU = {
+    kdc = kerberos.athena.mit.edu
+    admin_server = kerberos.athena.mit.edu
+}
+
+# mapování DNS na realmy
+[domain_realm]
+  .athena.mit.edu = ATHENA.MIT.EDU # cela domena
+  athena.mit.edu = ATHENA.MIT.EDU  # hostname
+
+[kdc]
+  profile = /var/kerberos/krb5kdc/kdc.conf
+
+[logging]
+  kdc = SYSLOG:INFO:DAEMON
+  admin_server = FILE:/var/log/kadmin.log
+  default = SYSLOG
+</pre>
+
+<p>Sekci <code>[domain_realm]</code> lze vynechat, pokud se DNS doména shoduje s realmem (což je doporučeno). Dále je možné vynechat i <code>[realms]</code>, pokud nastavíme odpovídající DNS SRV pro servery v realmu, nicméně útokem na DNS je pak možné dosáhnout např. odepření služby.</p>
+
+<h3 id="kerb:note">Poznámky</h3>
+<p>Kvůli použití časových známek je nutné zajistit synchronizaci času v celém realmu např. pomocí NTP.</p>
+<p>Služba může autentizace s pomocí Kerbera využít, pouze pokud je na to připravená. V praxi je třeba použít tzv. <em>kerberizovanou verzi</em>. Na Debianu mají takové balíčky prefix <em>kbr-</em>, např. krb-ftpd, krb5-telnetd a pod. Dále je pro každou takovou službu vytvořit principal a přenést k ní její klíč (soubor keytab) a konfigurační soubor krb5.conf.</p>
+
+<h2 id="pam">PAM</h2>
+<p>S autentizačním systémem PAM (<em>Pluggable Authentication Modules</em>) přišla firma Sun a dnes je přítomen na většině systémů unixového typu. Základní myšlenkou je oddělení konkrétní autentizační části programů do jedné společné knihovny. Ta poskytuje obecné rozhraní a odděluje tak programy od implementačních detailů autentizačních metod. To pak umožňuje programům jako XDM používat autentizaci pomocí hesla, otisku prstu nebo čipové karty. Existují implementace pod GPL - Linux-PAM, i BSD licencí - OpenPAM.</p>
+
+<h3 id="pam:principy">Principy</h3>
+
+<p>V praxi je každý program, který potřebuje autentizovat uživatele, slinkovaný s knihovnou <code>libpam</code> obalující pluginy (na Linuxu umístěné v <code>/lib/security/</code>), které implementují konkrétní autentizační mechanismy.</p>
+
+<p>Autentizační moduly jsou rozděleny dle činnosti do těchto skupin:</p>
+<ul>
+<li><b>account</b> - Ověřování účtu: Neexpiroval? Je aktivní? Je povolen přístup ke službě?</li>
+<li><b>auth</b> - Vlastní autentizace uživatelů, např. pomocí hesla, čipové karty, jednorázového hesla a pod.</li>
+<li><b>session</b> - Provádí další akce před i po zpřístupnění služby, např. nastavení prostředí nebo auditování. </li>
+<li><b>password</b> - Zajištění změn autentizačních údajů - např. hesla, tokenu a pod. </li>
+</ul>
+
+<p>Vybrané zajímavé moduly:</p>
+
+<ul>
+<li>pam_krb5.so - provádí autentizaci Kerberem (uživatel nemusí ručně spouštět program <code>kinit</code>)</li>
+<li>pam_time.so - omezuje přihlášení dle času</li>
+<li>pam_securetty.so - kontrola terminálu dle <code>/etc/securetty</code></li>
+<li>pam_unix.so - klasická unixová autentizace</li>
+<li>pam_limits.so - nastavení limitů (viz <code>ulimit</code>, ochrana před neopatrnými uživateli)</li>
+<li>pam_deny.so - vždy skončí neúspěšně</li>
+<li>pam_cracklib.so - testuje kvalitu hesla</li>
+<li>pam_exec.so - spustí externí program</li>
+<li>pam_delay.so - zdržuje přihlašování při chybné autentizaci</li>
+</ul>
+
+<h3 id="pam:conf">Konfigurace</h3>
+<p>Konfigurace je umístěna buď v jednom souboru <code>/etc/pam.conf</code>, nebo rozdělena dle programů v adresáři <code>/etc/pam.d</code>, který pokud existuje, je <code>pam.conf</code> vždy ignorován.</p>
+
+<p>Konfigurační soubor je procházen sekvenčně, na každém řádku je popsán jeden autentizační modul ve tvaru: skupina řídící-hodnota modul [argumenty-modulu]. Řídící hodnoty mohou být:</p>
+
+<ul>
+<li>required - Položka je povinná, při neúspěchu nakonec celá autentizace selže.</li>
+<li>requisite - Podobně jako předchozí, ale autentizace selže okamžitě.</li>
+<li>sufficient - Dostačuje k autentizaci samo o sobě bez ohledu na ostatní moduly.</li>
+<li>optional - Vždy se provede, ale výsledek má na provedení autentizace vliv jen pokud jde o jediný modul své skupiny.</li>
+<li>include  - Vložení pravidel z externího souboru.</li>
+</ul>
+
+<h4>Příklad</h4>
+
+<p>Následující soubor <code>/etc/pam.d/passwd</code> zajistí, že se při změně hesla nejprve otestuje dle zadaných kritérií jeho kvalita - pokud tento test selže, dál se nepokračuje, jinak se nové heslo se uloží do <code>/etc/shadow</code> s sha512 hashem:
+<pre>
+password        required        pam_cracklib.so difok=2 minlen=8 dcredit=2 ocredit=2 retry=3
+password        required        pam_unix.so sha512 shadow nullok
+</pre>
+</p>
+
+<p>Nebo <code>/etc/pam.s/sshd</code>:
+<pre>
+#auth           required        pam_securetty.so        #Disable remote root
+auth            required        pam_unix.so
+auth            required        pam_nologin.so
+auth            required        pam_env.so
+account         required        pam_unix.so
+account         required        pam_time.so
+password        required        pam_unix.so
+session         required        pam_unix_session.so
+session         required        pam_limits.so
+</pre>
+</p>
+
+<h2 id="literatura">Literatura</h2>
+<ul>
+<li><a href="http://www.fi.muni.cz/~kas/p090/referaty/">Archív referátů</a></li>
+<li><a href="http://www.fi.muni.cz/~kas/p077/p077.pdf">Slidy přednášky PV077</a></li>
+<li><a href="http://web.mit.edu/kerberos/www/dialogue.html">Designing an Authentication System: a Dialogue in Four Scenes</a></li>
+<li><a href="http://web.mit.edu/Kerberos/krb5-1.7/krb5-1.7/doc/krb5-admin.html">Kerberos V5 System Administrator's Guide</a></li>
+<li><a href="http://kerberos.zdenda.com/">Kerberos: Instalace a použití</a></li>
+<li><a href="http://www.abclinuxu.cz/clanky/bezpecnost/kerberos-prihlasovani-snadno-a-rychle">Kerberos: přihlašování snadno a rychle</a></li>
+<li><a href="http://techpubs.spinlocksolutions.com/dklar/kerberos.html">Debian GNU: Setting up MIT Kerberos 5</a></li>
+<li>RFC <a href="http://tools.ietf.org/html/rfc1510">1510</a> a <a href="http://tools.ietf.org/html/rfc4120">4120</a></li>
+<li>manuálové stránky PAMu</li>
+</ul>
+</body>
+</html>
