@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="iso-8859-2"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-2" />
+<link rel="stylesheet" href="http://www.fi.muni.cz/~kas/css/main.css" type="text/css" media="screen" />
+<link rel="stylesheet" href="http://www.fi.muni.cz/~kas/css/pv090ref.css" type="text/css" media="screen" />
+<title>HTTP servery</title>
+</head>
+<body>
+
+<div id="nadpis">
+<h1>HTTP servery</h1>
+<h2>Martin Bukatovič, xbukatov@fi.muni.cz</h2>
+</div>
+
+<h2>Obsah</h2>
+<ul>
+<li><a href="#http">Protokol HTTP</a></li>
+<ul>
+	<li><a href="#http:verze">Verze protokolu</a></li>
+	<li><a href="#http:metody">Metody</a></li>
+	<li><a href="#http:header">Hlavičky</a></li>
+	<li><a href="#http:kody">Stavové kódy</a></li>
+</ul>
+<li><a href="#apache">Apache</a></li>
+<ul>
+	<li><a href="#apache:conf">Konfigurace</a></li>
+	<li><a href="#apache:mod">Moduly</a></li>
+	<li><a href="#apache:virt">Virtuální servery</a></li>
+	<li><a href="#apache:ssl">SSL</a></li>
+	<li><a href="#apache:cgi">CGI</a></li>
+</ul>
+<li><a href="#impl">Alternativní implementace</a></li>
+<li><a href="#literatura">Literatura</a></li>
+</ul>
+
+<h2 id="http">Protokol HTTP</h2>
+<p><em>HyperText Transfer Protocol</em> je síťový aplikační protokol, který byl původně navržen pro přenos HTML stránek a později byl rozšířen o možnost přenosu libovolných dat. <!-- jak email -->
+Vývoj protokolu probíhal pod vedením organizací W3C (World Wide Web Consortium) a IETF (Internet Engineering Task Force).</p>
+
+<p>HTTP je postaveno na architektuře klient-server. Komunikace je bezstavová s následujícím základním schématem: klient otevře na server spojení, pošle svoji žádost a po doručení odpovědi je spojení uzavřeno.
+Protokol má textovou podobu a je mu vyhrazen tcp port 80.</p>
+
+Příklad jednoduché komunikace:
+<pre>
+$ telnet localhost 80
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+<b>GET / HTTP/1.0</b>
+<b>Host: localhost</b>
+
+HTTP/1.1 200 OK
+Date: Sun, 01 Nov 2009 14:06:54 GMT
+Server: Apache
+Last-Modified: Sun, 01 Nov 2009 14:05:04 GMT
+Accept-Ranges: bytes
+Content-Length: 279
+Connection: close
+Content-Type: text/html
+
+&lt;html&gt;
+&lt;head&gt;&lt;title&gt;Hello World&lt;/title&gt;&lt;/head&gt;
+&lt;body&gt;
+&lt;h1&gt;Welcome&lt;/h1&gt;
+&lt;p&gt;It's working!&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+Connection closed by foreign host.
+</pre>
+
+<h3 id="http:verze">Verze protokolu</h3>
+<ul>
+<li>0.9 - původní dnes zastaralá verze, pouze metoda GET</li>
+<li>1.0 - RFC 1945 (1996)</li><ul>
+	<li>hlavičky pro požadavky i odpovědi</li>
+	<li>nové metody HEAD a POST</li>
+	<li>stavové kódy</li>
+</ul>
+<li>1.1 - RFC 2086 (1999)</li><ul>
+	<li>keep-alive - možnost znovu použít otevřené spojení k vyslání dalšího požadavku (všechny spojení perzistentní, ale timeout bývá nastaven na několik sekund)</li>
+	<li>pipelining - odeslání několika požadavků zároveň (většina prohlížečů zatím nepoužívá ve výchozím nastavení)</li>
+	<!-- <li>upgrade spojení na šifrované TLS </li> -->
+	<li>další metody (PUT,DELETE,TRACE,CONNECT,OPTIONS)</li>
+</ul>
+</ul>
+
+<h3 id="http:metody">Metody</h3>
+<p>Určují typ požadavku klienta. Mezi základní patří:</p>
+<!-- GET,HEAD,OPTIONS,TRACE vs POST,PUT,DELETE -->
+<table>
+<tr><td><code>GET</code></td><td>požadavek na HTML stránku nebo jiný soubor</td></tr>
+<tr><td><code>HEAD</code></td><td>požadavek na hlavičku HTML stránky</td></tr>
+<tr><td><code>POST</code></td><td>předávání dat na server</td></tr>
+<tr><td><code>PUT</code></td><td>nahraje soubor na server</td></tr>
+<tr><td><code>DELETE</code></td><td>maže soubor na serveru</td></tr>
+<tr><td><code>OPTIONS</code></td><td>zjišťování možností spojení</td></tr>
+<tr><td><code>TRACE</code></td><td>sledování dotazu zasílaný na server</td></tr>
+<tr><td><code>CONNECT</code></td><td>nastavení spojení</td></tr>
+</table>
+
+<h3 id="http:header">Hlavičky</h3>
+<p>
+Vychází ze standardu MIME. Každá hlavička je uvedena na samostatném řádku ve tvaru:
+<pre>jméno-hlavičky: hodnota</pre>
+Pokud hlavička začíná bílým znakem, jde o pokračování z předchozího řádku.
+</p>
+
+<h4>Zasílané klientem</h4>
+<p>Doplňují požadavek zaslaný serveru. Některé z nich:</p>
+<table>
+<tr><td><code>Host</code></td><td>uvádí plné doménové jméno serveru</td></tr>
+<tr><td><code>Accept</code></td><td>seznam MIME typů, kterým klient rozumí</td></tr>
+<tr><td><code>Accept-Charset</code></td><td>preferovaný znakové sady</td></tr>
+<tr><td><code>Accept-Encoding</code></td><td>preferované kódování</td></tr>
+<tr><td><code>Accept-Language</code></td><td>preferované jazyky</td></tr>
+<tr><td><code>User-Agent</code></td><td>identifikace klienta</td></tr>
+</table>
+
+<h4>Zasílané serverem</h4>
+<p>Popisují zasílaná data, některé zajímavé:</p>
+<table>
+<tr><td><code>Content-Type</code></td><td>MIME typ zasílaných dat, např. image/png</td></tr>
+<tr><td><code>Content-Encoding</code></td><td>kódování zasílaných dat</td></tr>
+<tr><td><code>Content-Length</code></td><td>délka dat</td></tr>
+<tr><td><code>Expires</code></td><td>platnost dat</td></tr>
+<tr><td><code>Server</code></td><td>identifikace serveru</td></tr>
+</table>
+
+<h3 id="http:kody">Stavové kódy</h3>
+<p>
+Stavový kód reprezentuje stav zpracování dotazu serverem.
+Je uveden na prvním řádku odpovědi serveru (před hlavičkou).
+Kódy jsou rozděleny do 5 skupin:
+</p>
+<ul>
+<li><b>1xx</b> informační</li>
+<li><b>2xx</b> úspěch <br/> př. 200 OK</li>
+<li><b>3xx</b> přesměrování <br/> př. 301 Moved Permanently</li> 
+<li><b>4xx</b> chyba na straně klienta <br/> př. 404 Not Found</li> 
+<li><b>5xx</b> chyba na straně serveru <br/> př. 503 Service Unavailable</li> 
+</ul>
+
+<h2 id="apache">Apache</h2>
+<p>
+Server Apache dlouhodobě patří mezi nejrozšířenější http servery. Vznikl z NCSA HTTPd serveru a v současnosti se o jeho vývoj stará Apache Software Foundation.
+</p>
+
+<p>Instalaci lze provést pomocí balíčkovacího systému, na Debianu jde o balíček apache2.</p>
+
+<h3 id="apache:conf">Základní konfigurace</h3>
+<p>
+Konfigurace je kvůli přehlednosti rozdělena do několika konfiguračních souborů. Ve výchozím nastavení je hlavním konfigurační souborem httpd.conf.
+Každá distribuce řeší rozmístění a pojmenování konfiguračních souborů jinak, např.
+Debian má konfigurační soubory v adresáři /etc/apache2 s hlavním konfiguračním souborem apache2.conf.
+</p>
+
+<h4>Některé konfigurační direktivy</h4>
+<table>
+<tr><td><code>ServerName</code></td><td>nastavuje jméno serveru</td></tr>
+<tr><td><code>DocumentRoot</code></td><td>kořenový adresář serveru</td></tr>
+<tr><td><code>KeepAlive</code></td><td>povoluje výše zmíněných perzistentních spojení</td></tr>
+<tr><td><code>Listen</code></td><td>určuje kde (adresa a port) bude server čekat požadavky</td></tr>
+<tr><td><code>Include</code></td><td>vložení konfigurace z jiného souboru</td></tr>
+</table>
+
+<h3 id="apache:mod">Moduly</h3>
+<p>
+Apache je navržen modulárně a existuje tak pro něj spousta rozšiřujících modulů.Ty mohou být buď přímo zakompilovány v serveru nebo zvlášť ve formě sdílených knihoven. Konkrétní externí moduly se zapínají pomocí direktivy LoadModule.
+Použití, např.:
+</p>
+<ul>
+<li>běh skriptovacích jazyků v rámci Apache: mod_perl, mod_php, mod_python, ...</li>
+<li>autentizace: mod_auth*</li>
+<li>podpora pro SSL: mod_ssl</li>
+<li>přesměrování: mod_rewrite, mod_alias</li>
+</ul>
+
+<h3 id="apache:virt">Virtuální servery</h3>
+<p>
+Server Apache dokáže provozovat více nezávislých serverů v rámci jednoho stroje, čehož se využívá např. při webhostingu. Konfigurace virtuálního serveru je nezávislá na ostatních - každý má svůj adresář s daty, log a pod.
+Aby bylo možné od sebe virtuální stroje rozeznat, má každý přiřazenu buď přímo ip adresu (tj. fyzické nebo virtuální síťové rozhraní) nebo doménové jméno.  
+</p>
+
+<p>Příklad konfigurace virtuálních serverů dle jména (name-based): na stroji s jednou ip adresou provozujeme servery pro www.domain.tld a www.otherdomain.tld.
+<pre>
+NameVirtualHost *:80
+
+&lt;VirtualHost *:80&gt;
+  ServerName www.domain.tld
+  ServerAlias domain.tld *.domain.tld
+  DocumentRoot /www/domain
+&lt;/VirtualHost&gt;
+
+&lt;VirtualHost *:80&gt;
+  ServerName www.otherdomain.tld
+  DocumentRoot /www/otherdomain
+&lt;/VirtualHost&gt;
+</pre>
+</p>
+
+<p>Příklad konfigurace virtuálních serverů dle ip adresy (ip-based):
+na stroji, který má několik síťových rozhraní, provozujeme server pro každé rozhraní zvlášť.
+<pre>
+&lt;VirtualHost 172.20.30.40&gt;
+  DocumentRoot /www/example1
+  ServerName www.example.com
+&lt;/VirtualHost&gt;
+ 
+&lt;VirtualHost 172.20.30.50&gt;
+  DocumentRoot /www/example2
+  ServerName www.example.org
+&lt;/VirtualHost&gt;
+</pre>
+</p>
+
+<p>Obě možnosti jdou kombinovat, např. v případě, kdy má stejný server běžet na více různých rozhraních.</p>
+
+<h3 id="apache:ssl">SSL</h3>
+<p>
+SSL zajišťuje zabezpečený přenos dat založený na kryptografii s veřejným klíčem. Certifikát serveru může pro zvýšení důvěryhodnosti podepsán certifikační autoritou. 
+Pro použití SSL je třeba načíst modul mod_ssl, který je rozhraním pro knihovnu OpenSSL.
+</p>
+ 
+<p>
+U virtuálních serverů založených na jméně lze zprovoznit podporu pro SSL jen u jednoho z nich, jinak by došlo ke konfliktům - SSL certifikáty jsou vystavovány na doménové jméno.
+</p>
+
+<p>Ukázka konfigurace SSL u virtuálního serveru:
+<pre>
+&lt;VirtualHost _default_:443&gt;
+  SSLEngine on
+  SSLCertificateFile    /etc/pki/tls/certs/localhost.cert
+  SSLCertificateKeyFile /etc/pki/tls/private/localhost.key
+&lt;/VirtualHost&gt;
+</pre>
+</p>
+
+
+<h3 id="apache:cgi">CGI</h3>
+<p>
+Jde o techniku, která umožňuje spouštění skriptů pro generování http odpovědí.
+Řeší podobný problém jako mod_php nebo mod_perl, ale není omezeno na konkrétní jazyk.
+Pro spouštění cgi skriptů je nutné načíst modul mod_cgi.
+</p>
+
+<p>
+CGI skripty je možné umístit v jednom adresáři pomocí direktivy ScriptAlias, která zajišťuje přesměrování i povolení ke spouštění skriptů:
+<pre>ScriptAlias /cgi-bin/ "/usr/local/apache2/cgi-bin/"</pre>
+</p>
+
+<p>
+Dále je možné povolit spouštění skriptů mimo adresář cgi-bin dle přípony:
+<pre>
+&lt;Directory /home/*/public_html&gt;
+  Options +ExecCGI
+  AddHandler cgi-script .cgi
+  DirectoryIndex index.html index.cgi
+&lt;/Directory&gt;
+</pre>
+</p>
+
+
+
+<h2 id="impl">Alternativní implementace</h2>
+<ul>
+<li>lighttpd - zaměřen na menší paměťovou i procesorovou náročnost</li>
+<li>Java Servlet container: Tomcat, Jetty, Glassfish</li>
+</ul>
+
+
+<h2 id="literatura">Literatura</h2>
+<ul>
+<li><a href="http://www.fi.muni.cz/~kas/p090/referaty/">Archív referátů</a></li>
+<li><a href="http://www.fi.muni.cz/~kas/p005/p005-6.ps">Služby počítačových sítí (HTTP, IPv6)</a></li>
+<li><a href="http://en.wikipedia.org/wiki/HTTP_persistent_connection">HTTP persistent connection</a></li>
+<li><a href="http://httpd.apache.org/docs/2.2/">Manuál serveru Apache 2.2</a></li>
+</ul>
+</body>
+</html>
