@@ -1,0 +1,258 @@
+% atol IPv6 presentation
+% Martin Bukatovic, 2011
+% www.fi.muni.cz/~xbukatov/atol
+
+% Based on template by Sascha Frank, Sep. 2005 
+% www.informatik.uni-freiburg.de/~frank/
+% For non commercial purposes only.
+
+\documentclass{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage{beamerthemesplit}
+\usepackage{listings}
+\usepackage{url}
+
+% theme
+\usetheme{Boadilla}
+\usecolortheme{crane}
+
+\begin{document}
+\lstset{basicstyle=\ttfamily}
+\title[~]{IPv6} 
+\author{Martin Bukatovič} 
+\institute[PV208]{}
+\date{16. 3. 2010}
+
+\frame{\titlepage} 
+\frame{\tableofcontents} 
+
+%
+% main
+%
+
+\section{Vlastnosti IPv6} 
+
+\begin{frame} \frametitle{Vlastnosti IPv6}
+IPv6 adresa zabírá 128\,b,
+stroj má zpravidla několik různých adres pro jedno rozhraní.
+
+% struktura adresy, co kdo prideluje a jak je to velke
+
+Druhy adres:
+\begin{itemize}
+\item Unicast - individuální adresa
+\item Anycast - výběrová adresa % smerovace, domaci agenti
+\item Multicast - skupinová adresa % vsichni dle zony, solicited adresa uzlu ..
+\end{itemize}
+
+Adresní prostor:
+\begin{itemize}
+\item loopback: {\tt ::1/128}
+\item lokální linkové adresy: {\tt fe80::/10}
+\item unikátní lokální adresy: {\tt fc00::/7}
+\item multicast: {\tt ff00::/8}
+\item individuální globální adresy {\tt 2000::/3}
+\end{itemize}
+
+\end{frame}
+
+%\begin{frame} \frametitle{Vlastnosti IPv6}
+%Struktura globální individuální adresy:
+%
+%Adresy, co musi znat stroj
+%Rozhrani muze mit nekolik adres
+%Zona, dosah platnosti adresy
+%
+%\begin{block}{ukazka}
+%%\begin{lstlisting}
+%ping
+%%\end{lstlisting}
+%\end{block}
+%
+%\end{frame}
+
+\section{Konfigurace IPv6} 
+
+% Konfigurace sitovych parametru (prefix podsite, mtu, dns server, vychozi brana, ...) 
+
+\begin{frame} \frametitle{Konfigurace IPv6}
+Proces konfigurace může být:
+
+\begin{itemize}
+\item manuální - primárně pro servery
+\item automatický - využívá zpráv protokolu ICMPv6
+  \begin{itemize}
+  \item bezestavová - stroj získá adresu přes oznámení směrovače
+  \item DHCPv6 (stavová)
+  \item bezestavové DHCPv6 - kombinace obou předchozích možností
+  \end{itemize}
+\end{itemize}
+
+% ICMPv6 je pro fungování protokolu kritický a nelze jej jen tak beztrestně zakázat ...
+% note: autokonf. jedine prirazuje adresu vychozi brany
+%       dhcpv6 
+
+\vskip 1em
+\pause
+
+Id rozhraní (posledních 64\,b adresy) si stroj generuje:
+\begin{itemize}
+\item sám z linkové adresy (dle EUI-64 pro IPv6)
+\item vygeneruje náhodně (v případě privacy extensions)
+\item generuje na základě kryptografického protokolu (při použití SEND)
+\item nebo může převzít z DHCPv6 serveru % check
+\end{itemize}
+
+\end{frame}
+
+\subsection{Autokonfigurace}
+\begin{frame} \frametitle{Autokonfigurace IPv6}
+
+Nový stroj v síti při bezestavové automatické konfiguraci:
+\begin{enumerate}
+\item vytvoří si lokální linkovou adresu
+\item provede detekci duplicitních adres pro právě vytvořenou adresu, pokud selže, autokonfigurace končí
+\item přidělí si lokální linkovou adresu
+\item získá oznámení směrovače (obsahující všechny prefixy platné v podsíti)
+\item přidělení adres ke všem prefixům s flagem A
+\end{enumerate}
+
+Konfigurace používající DHCPv6 se liší až v posledním kroku: místo automatického
+přidělení adres z poskytnutých prefixů se kontaktuje DHCPv6 server.
+
+% autokonfiguraci nelze vynechat, i kdyz pouzivame dhcp
+% DHCPv6 předpokládá, že stroj má alespoň lokální linkovou adresu získanou autokonfigurací.
+% Dle konfigurace uvedené v oznámení směrovače může stroj použít několik různých metod pro získání adresy.
+% Pokud overeni adresy selze, autokonfigurace nepokracuje a nefunguje ani dhcp, ktere predpoklada aspon link-local adresu.
+% pomoci dhcpv6 nepredam vychozi branu
+
+\end{frame}
+
+\subsection{DNS a IPv6}
+\begin{frame} \frametitle{DNS a IPv6}
+Původní návrh zprávy \texttt{oznámení směrovače} neobsahoval informace o DNS serverech. Vynucuje použití bezstavového DHCPv6.
+% dhcp neumi rict def. branu a prefixy lokalni site, ale umi poskytnout adresu nebo dns server
+
+RFC 6106 přidává do zprávy \texttt{oznámení směrovače} volby RDNSS (adresa DNS serveru) a DNSSL (domain search list), ale ještě nedávno experimentální, problém s implementacemi.
+
+\vskip 1em
+\pause
+
+Ktere adresy by měly být zavedeny v DNS?
+\begin{itemize}
+\item všechny globální individuální adresy s dlouhodobou platností
+\end{itemize}
+Ale co adresy získané z bezstavové automatické konfigurace nebo DHCP? 
+
+\end{frame}
+
+\section{Překlad adres} 
+\subsection{NAT a IPv4}
+\begin{frame} \frametitle{NAT a IPv4}
+
+Primární funkce překladu adres je vypořádat se s jejich nedostatkem.
+
+\begin{block}{Network Address Translation}
+Překlad adresy strojů z podsítě s neveřejným rozsahem IP adres (včetně portu) na omezeny počet veřejných adres (často jednu) a
+umožňuje jim tak navázat spojeni směrem do Internetu.
+\end{block}
+
+Není možní se na stroje za NATem připojit z Internetu:
+\begin{itemize}
+\item \texttt{bad} - rozbíjí \texttt{end to end} komunikaci,
+\item \texttt{ugly} - protokoly posílající adresy v datové části vyžadují zpracováni celého paketu (např. SIP, FTP),
+\item \texttt{good} - přispívá určitou měrou k bezpečnosti podsítě (nejde ale o falešný pocit bezpečí?)
+\end{itemize}
+
+% bezpecnost zminit zde, takze se ji pak nebudu muset dale venovat
+% viz: nektere protokoly prosakuji vnitrni ip adresu
+%      pomoci smerovaci hlavicky je mozne projit natem (ale casto je zakazana)
+%      bez fw nat bezpecny proste neni
+%      + obrovsky rozsah ipv6 docela zneprijemnuje skenovani podsiti
+
+IPv6 bylo navrženo tak, aby NAT nebyl potřeba, problem je, že NAT je dnes nasazen prakticky všude
+a některé jeho vlastnosti jsou tak očekávány i od IPv6.
+\end{frame}
+
+\subsection{NAT v prostředí IPv6}
+\begin{frame} \frametitle{Vedlejší funkce NATu a IPv6}
+
+\begin{block}{Funkce}
+Nezávislost adresace sítě na ISP, snadný přechod k jinému ISP a případně multihoming (připojení k několika ISP zároveň).
+\end{block}
+
+\begin{itemize}
+\item Pro vnitřní komunikace používat výhradně unikátní lokální adresy (ULA), udržovat je ve vnitřním DNS serveru.
+      Změna ISP není tak jednoduchá jako v případě NATu, je třeba přečíslovat globální adresy všech vnitřních uzlu (zjednodušené autokonfiguraci).
+\pause
+\item Použití PI adres.
+      Používá se i v IPv4. Pro danou organizaci se vytvoří samostatný AS, který ma vlastni záznam v globálních směrovacích tabulkách a ISP ho jen směruje pres sebe.
+      Vhodné pro multihoming velkých organizaci.
+      Problematické z hlediska snahy udržovat pro IPv6 co nejmenší hierarchii.
+% zminit multihoming malych organizaci - pres zmenu isp ...
+% zadny navrh pro multihoming v ipv6 neni zatim hotovy
+
+\end{itemize}
+\end{frame}
+
+\begin{frame} \frametitle{Vedlejší funkce NATu a IPv6}
+
+\begin{block}{Funkce}
+Nezávislost adresace sítě na ISP, snadný přechod k jinému ISP a případně multihoming (připojení k několika ISP zároveň).
+\end{block}
+
+Mapování prefixu sítí (NPTv6, původně nazývané NAT66):
+% vychazi z nazvu NAT64 pro preklad mezi ipv4 a ipv6
+\begin{itemize}
+\item Podoba se NATu, překládá se jen prefix adresy.
+\item Je možné se připojit do vnitřní sítě.
+\item Jednoduché na konfiguraci i pro přechod k jinému ISP.  
+\item Existuje experimentální podpora pro iptables.
+% pretrvava ugly problem: posilani adres v datech
+\end{itemize}
+
+\end{frame}
+
+\begin{frame} \frametitle{Vedlejší funkce NATu a IPv6}
+
+\begin{block}{Funkce}
+Zajištění soukromí a skrytí topologie vnitřní site před světem.
+\end{block}
+
+Řeší tzv. Privacy Extensions:
+\begin{itemize}
+\item jeden hlavni identifikátor rozhraní dle EUI-64, zavedeny v DNS pro nova příchozí spojeni na stroj
+\item pro spojeni ven se periodicky generuji náhodné IPv6 adresy, které:
+  \begin{itemize}
+  \item jsou časově omezené,
+  \item nejsou vedeny v DNS,
+  \item pro spojeni ze stroje někam pryč mají přednost před primární adresou.
+  \end{itemize}
+% v jednom okamziku tak stroj muze pouzivat nekolik nahodnych ipv6 adres, ale pro nove spojeni pouziva vzdy tu nejnovejsi
+% kterou po case pregeneruje (obvykle tak 1 den)
+% otazka je, zda zpusobi vetsi chaos ipv6 nat nebo tohlecto
+% viz. problem sledovani site, nahodne adresy nemusi byt unikatni ...
+\end{itemize}
+
+Problem s reverzním záznamem a potenciálním chaosem v síti.
+
+\end{frame}
+
+%
+% reference
+%
+
+\section{Reference}
+
+\begin{frame}
+\frametitle{Reference}
+\begin{itemize}
+
+\item Pavel Satrapa: IPv6, \url{http://knihy.nic.cz/ipv6/}
+\item lupa.cz, \url{http://www.lupa.cz/n/ipv6/clanky/}
+
+\end{itemize}
+\end{frame}
+
+\end{document}
