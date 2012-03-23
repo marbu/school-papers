@@ -1,0 +1,427 @@
+\documentclass[a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{a4wide}
+\usepackage{url}
+\usepackage{enumerate}
+\usepackage{ifpdf}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{float}
+
+\ifpdf\usepackage[
+  pdftex,
+  hyperindex,
+  colorlinks=true,
+  linkcolor=black,
+  menucolor=black,
+  bookmarks,
+  bookmarksnumbered=true,
+  pdftitle={Assignment},
+  pdfauthor={Martin Bukatovic},
+  ]{hyperref}
+\fi
+
+\pagestyle{fancy}
+\fancyhead{}
+\fancyhead[LE,RO]{Distributed Trust Management: Extra Assignment}
+\fancyhead[LO,RE]{M.\,Bukatovič}
+
+\author{Martin Bukatovič}
+\title{
+Prevention and quantification of privacy violations\\
+\textsc{2IS25} extra assignment
+}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+%\section{Introduction}
+
+This assignment discuss 3 particular papers concerned with privacy 
+in current environment where large amounts
+of personal information are collected and processed by organizations such
+as online merchants, search engines and social networks.
+% hippocratic databases
+The first paper establishes a concept of \emph{Hippocratic
+database} \cite{paper_hdb}. Authors introduce list of requirements for
+designers and administrators of database systems to follow so that
+collections of potentially sensitive data may be processed, while
+respecting privacy needs of individual users.
+%Moreover example of such use case with proposed architecture is given.
+% leaked privacy metric
+Other way to address privacy issues is to help users to realize how
+much information they make available by posting
+particular content on social network.
+% Using this information, the user can adjust theirs postings to avoid
+% unintentional privacy leakage.
+For this purpose, authors of the next paper \cite{paper_privacy_sns}
+propose a \emph{leaked privacy metric} based on entropy and probability theory.
+% yet another privacy metric
+The last discussed paper \cite{paper_qpv} quantifies privacy violations
+in more general way by building on 4D privacy model.
+
+\section{Summary of selected approaches}
+
+In this section, the key ideas introduced in each paper are summarized
+% \footnote{Papers are listed by the publication date.}
+so that the
+discussion of differences in proposed techniques will be easier in the
+following section.
+% For exact definitions see the original papers.
+
+\subsection{Hippocratic databases}
+
+Inspired by the \emph{Hippocratic oath}, the authors tries to define what
+doest it mean for a database system to store private information respecting
+user's privacy needs \cite{paper_hdb}.
+Based on ideas behind existing privacy regulations, the founding principles
+of so called \emph{Hippocratic database system}, are:
+
+\begin{enumerate} \itemsep=-\parskip
+\item \textbf{Purpose Specification}
+For personal information stored in the database, the purposes for which the
+information has been collected shall be associated with that information.
+\item \textbf{Consent}
+The purposes associated with personal information shall have
+consent of the donor of the personal information.
+\item \textbf{Limited Collection}
+The personal information collected shall be limited to the minimum necessary
+for accomplishing the specified purposes.
+\item \textbf{Limited Use}
+The database shall run only those queries that are consistent with the purposes
+for which the information has been collected.
+\item \textbf{Limited Disclosure}
+The personal information stored in the database shall not be communicated
+outside the database for purposes other than those for which there
+is consent from the donor of the information.
+\item \textbf{Limited Retention}
+Personal information shall be retained only as long as necessary for the
+fulfillment of the purposes for which it has been collected.
+\item \textbf{Accuracy}
+Personal information stored in the database shall be accurate and up-to-date.
+\item \textbf{Safety}
+Personal information shall be protected by security safeguards against theft
+and other misappropriations.
+\item \textbf{Openness}
+A donor shall be able to access all information about the donor stored in the
+database.
+\item \textbf{Compliance}
+A donor shall be able to verify compliance with the
+above principles. Similarly, the database
+shall be able to address a challenge concerning compliance.
+\end{enumerate}
+
+It's obvious that such system can't be directly
+implemented using available technologies and besides rethinking of current
+database design, complete solution has also involve laws and norms.
+So to initialize discussion about possible implementation, paper provides sketch
+of database architecture build upon concept of purpose specification.
+In this design, the \emph{privacy policies} specifies following information
+for each column in the database:
+\begin{itemize} \itemsep=-\parskip
+\item \emph{purpose} (eg. purchase, registration or recommendation),
+\item \emph{retention period} defining how long the information is stored,
+\item \emph{set of allowed external entities}
+limiting whom the given column can be revealed to (eg. delivery-company,
+credit-card-company, \dots).
+\end{itemize}
+This allows "database privacy officer" to specify rules like: credit card
+information are stored only for the purchase purpose, can be handled
+only to credit card companies and are stored only for 1 month.
+
+% validation
+But before any client of a company using Hippocratic database provides any of
+his personal data, database itself verifies whether the privacy policy of the
+database conforms client's privacy preferences.
+% requirements checked
+If the policy is evaluated to be compatible, audit trail of the
+validation process is stored so that only acceptable purposes will be
+associated with the data which the client will provide.
+If the policy doesn't match the client's requirements, he opts out of the
+transaction without providing any data.
+
+% query execution
+To access data, database user has to provide intended purpose along with the
+query itself for the database to be able to perform checks and filtering.
+First of all, database verifies if the query conforms the \emph{privacy
+policies}
+\footnote{
+In fact the query is checked against so-called \emph{privacy
+authentications}, which implements the authentication aspect of the
+\emph{privacy policy}. We don't need to go into such details though.
+}: set of accessed columns is determined and each one has to be listed in  the
+\emph{privacy policy} along with given purpose and username.
+Then during execution itself, database leaves out results which doesn't match
+purpose of the query (concept similar to clearance of secure databases).
+The final check involves detection of suspicious patters based on history of
+transaction - this way dumping all values of certain kind is not possible, even
+if the user can access individual values. Also other checks inspired by
+statistical databases can be done.
+
+Since not all of the requirements for the Hippocratic database can be
+checked directly during query execution, log of all activities has to be kept
+for auditing purposes. This way database would detect storage of unused
+information both in general and for specific purpose (limited collection),
+keeping information longer then needed and so on.
+
+% efficiency, other challenges
+Also it's worth to mention that not all requirements are straightforward to
+implement. Further research is needed in areas like language for privacy
+policies and privacy policy verification. Moreover in other cases efficiency
+has to be sacrificed in the name of privacy.
+
+\subsection{Entropy based privacy metric}
+
+Nowadays social networks sites are deeply integrated into the life of
+most internet users, which leads to large amount of potentially
+sensitive information being publicly available. Since users are usually
+not aware how much data are actually revealing, exploitation of these
+privacy leaks is possible. To address this problem, authors suggested a
+way to measure leaked information for the user to be able to realize the
+possible consequences and to help them decide if it's safe to post
+particular information \cite{paper_privacy_sns}.
+
+Before we describe computation of the privacy metric itself, let's see
+the problem from the other side: an intruder would like to answer
+particular question, called \emph{problem of interest}. Example of such
+problem we will use in this section is identification and gaining
+information about people involved in particular accident. Since it's
+reasonable to anticipate people discussing and writing blogs about the
+accident, the intruder decides to use publicly available postings on social
+networks. To get the answer, he tries to recognize several
+types of related information, called \emph{events}. In this case,
+suitable \emph{events} would be \emph{age}, \emph{city}, \emph{working
+place} or \emph{university}. Based on results of a search for posts
+related to chosen \emph{events}, he tries to carefully estimate possible
+value for each \emph{event}, as the probability of finding correct and
+precise answer depends both on quantity and quality of the events. It's
+easy to see that knowing age range of people involved would help the
+intruder to lower number of potential people he is interested in.
+Moreover if he is also able to specify their location and combine this
+information with already estimated age, he would be able to shrink the
+set of people even further and thus get much better answer.
+
+This scenario gives us a basic model to introduce \emph{the leaked
+privacy value}, defined as information related to given \emph{problem of
+interest} that intruder can gain. The core idea is to base this value on
+entropy and probability theory and compute it as a change in privacy
+value before and after publishing information on social networks. This
+leads to uncertainty estimation of given \emph{event} using only general
+knowledge without information from social networks and subtract a
+value based solely on social network postings from it. In addition, since
+\emph{problem of interest} is specified by several \emph{events}, we
+also needs to combine computed privacy values into one representing
+\emph{leaked privacy} in total.
+% TODO:SC
+
+For the purposes of the computation, \emph{event} is formally specified
+as a set of elements with probability defined for all elements (element
+represents a value or set of values). For one event we naturally need to
+compute 2 such sets (representing state before and after posting).
+
+To compute probability distribution of elements of given event for the
+state before revealing any information on social network, we need to
+gather statistical data from other sources. For event `city' that would
+mean to list all possible cities (with respect to the \emph{problem of
+interest}) and for each city to compute probability of randomly chosen
+person to live there based on it's population.
+
+For the state after posting, we need to compute probability
+distribution in the same form. First we need to extract related posts
+from the social networks. To automatize this process, each event is
+described by a list of \emph{hint keywords}, which will be used by
+custom information retrieval engine. Appropriate \emph{hint keywords}
+for \emph{event} university are ``college'', ``school'', ``university'',
+``campus'', ``student number'', ``major'' and so on. Result of this
+search will be list of sentences containing related information called
+just \emph{blogs} or \emph{blog sentences} (using the same terminology
+as in the paper). Implementing the next step is challenging as it
+involves advanced natural language and information retrieval processing
+(filtering keywords, searching for these keywords again, \ldots{}). In
+the end, the output will have the form of formalized event (probability
+distribution), which is then processed in the same way as in previous
+case. It's obvious that this task is not straightforward at all and
+depends heavily on advanced nlp algorithms, availability of statistical
+data and computing infrastructure.
+
+% Let's show the computation on the example.
+% here, I would try to show both example of usage and some math and definitions
+% note: oh come on, that's not necessary
+
+\subsection{General privacy violations model}
+
+% privacy model
+Authors of the paper \cite{paper_qpv} builds theirs privacy violations
+quantification approach on so called \emph{data privacy taxonomy}.
+This model represents privacy as a vector in four-dimensional space,
+where each dimension (so called \emph{privacy predicate}) describes privacy
+from different point of view. On the one hand privacy predicates for
+visibility,
+granularity and retention are represented as numeric values, on the other hand
+the ordering is not defined for the last predicate - purpose.
+Privacy quantified in this way can be used to represent both \emph{privacy
+policy} of the data collecting and processing entity and \emph{privacy
+preference} of an individual user (data provider).
+% violations model
+Then it's straightforward to automatically determine if given privacy policy
+matches particular privacy preferences. For instance privacy would be violated
+if for particular information (e.g. age) the privacy policy has at least one
+privacy predicate larger than corresponding predicate of privacy preference
+(note that only vectors with the same purpose are comparable).
+
+% privacy preserving database
+% TODO
+This model can be also used to compute probability that privacy of randomly
+chosen data provider is violated (which is easy since the model allows to
+compute total number of such users).
+Using this probability, the $\alpha$-\textsc{ppdb} (privacy preserving
+database) is defined as a database for which the probability is lower than
+$\alpha$.
+
+% quantification of violation
+To express severity of privacy violation, we need to take into account
+sensitivity which may vary for both different data providers and different
+leaked information.
+Therefore the paper introduces sensitivity quantification of data types for
+each data provider (e.g. one may be concerned about revealing his age whereas
+another doesn't care), and sensitivity of each value
+along with the sensitivity of each \emph{privacy predicate} -- also for each
+data provider.
+% privacy violation def.
+Then the \emph{privacy violation} of given information leak is defined as a sum
+of difference between privacy policy and privacy preferences for each
+dimension (\emph{privacy factor}), where the differences are multiplied by
+sensitivity factors.
+
+Now we are also able to compute the sum of all privacy violations for given
+user. Since this value express quantity (policy leaks many attributes) as well
+as quality (policy leaks particularly sensitive attribute) of all leaks allowed
+by the privacy policy, user can use it to decide if he should provide his data
+on such terms.
+
+% policy expansion
+Moreover organization collecting and processing private data can use the same
+model to estimate consequences of change of it's privacy policy.
+On the one hand such organization would like to increase usefulness of gathered
+data by widening of the privacy policy, on the other hand the same action would
+potentially decrease the number of people wiling to provide the data, which will
+and consequently limit the usefulness of available data as well.
+Using this model, organization can compute probability of people not accepting
+particular policy and thus effectively optimize expansion of it's privacy
+policy.
+
+\section{Comparison and discussion}
+
+\subsection{Privacy aware databases}
+% hdb
+Two different approaches to privacy respecting database were introduced.
+The first one, concept of \emph{Hippocratic database}, is defined by ten
+founding principles with suggested implementation built around purpose
+specification. Users of such database system can expect, among other things,
+that their data would not be used for purposes they are not aware of,
+that information would be deleted when no longer needed
+and most importantly that this guarantees can be verified anytime by any
+interested user.
+% ppdb
+In contrast knowing that given database system is $\alpha$-\textsc{ppdb}
+(privacy preserving database) \cite{paper_qpv} gives the user completely
+different promises.
+The definition states how probable it is to have one's data leaked and even
+though definition of the leak can take user's privacy preferences into account,
+without incorporating sensitivity of the leaked data into this estimation, low
+value of $\alpha$ can't guarantee that user's privacy is protected good
+enough\footnote{Although the paper states how to incorporate sensitivity into
+the computation of privacy violation, the definition of privacy preserving
+database doesn't uses it.}.
+Nevertheless the high value is sufficient to state that sharing data with this
+database is not a good idea. In addition another problem is how to establish
+the threshold.
+
+
+\subsection{Quantification of privacy violations}
+Paper \emph{Quantifying privacy violations}\cite{paper_qpv} creates a general
+framework to measure privacy leaks while the other
+model\cite{paper_privacy_sns} is targeted only for specific problem of
+quantifying unintentional privacy leaks on social network sites.
+% rant
+Although these models offers elegant way to compute violated privacy,
+in both cases implementation would require to carefully define and measure
+underlying data descriptors and it doesn't matter that the first approach is
+more general than the other.  In the first case, one would need to define given
+privacy policy and privacy preferences as a set of vectors in four-dimensional
+privacy space as well as sensitivity of privacy dimensions and used data types,
+while in the latter case preparation of database with generally
+available statistical data and development of tailored information retrieval
+engine is needed.  Nevertheless only the latter approach was already shown
+viable by prototype grade implementation providing reasonable results on simple
+problem.
+
+% how the privacy is represented
+% also severity of privacy violations
+Also differences in understanding of the privacy should not be underestimated.
+In the first case, privacy is combination of values for each privacy dimension
+which can represent either privacy policy or preference. It has to be specified
+manually or generated from manually specified privacy policy.  In the second
+approach privacy is represented only as a single value for difference of
+information entropy between information from publicly available sources and
+information from the social network. Unlike the previous case, this value is
+computed automatically, but to do so one has to gather the data by implementing
+focused crawler for the problem of interest along with searching for related
+publicly available databases.
+
+
+\subsection{Verification of privacy policy}
+Founding principles of Hippocratic database requires for the system to
+provide a way to verify it's privacy policy against user's privacy preferences.
+How to do this is still an open question as the solution has to be both
+automatic and general.
+However running this check is straightforward for the general privacy violation
+quantification framework\cite{paper_qpv} because it basically boils down to
+comparison of two privacy vectors.
+
+
+\subsection{Opting-out}
+All three discussed papers helps a user to recognize situation when it's better
+to not provide potentialy sensitive data.
+For hippocratic database and general privacy violation model, this check is
+done by verification of the privacy policy prior to storing any user data in a
+database.
+Nonetheless for entropy based privacy metric for social networks, instead of
+checking privacy policy user is alerted when the entropy of leaked information
+exceeds some threshold. On the other hand this procedure is similar to how the
+checking of privacy policy is actually done for general privacy violation model.
+
+
+\subsection{Entropy model implementation}
+
+Since the essential part of entropy based privacy metric implementation is
+information retrieval and natural language processing engine,
+companies processing private data such as search engines or social networks
+would be able to implement them fastest (at least in theory)
+as those companies has already put tremendous effort into development of
+necessary techniques and infrastructure. On the other hand, this doesn't mean
+that such firms would like to do this because it's against theirs interests in
+some cases. Nevertheless the general privacy violation model shows that even
+data collecting companies may be interested in implementing the model as one of
+use cases describes how optimalization of privacy policy with respect to
+outcome of data collector would be done.
+
+And since running a small search engine, which would be needed for
+implementation of the entropy based model, is not practical for single user to
+do himself, the users would still need to trust third party which does the
+entropy computation with potentially sensitive data needed to produce the
+privacy value no matter if the user decides to not post it in the end.
+For this reason if anyone builds such service in the future, he will also need
+to respect privacy of the uses - maybe by implementing hippocratic dataabse
+approach.
+% oh come on, man
+Moreover another "dark side" of the entropy approach is that the same techniques could be easily reused by intruders to find privacy leaks and exproit them.
+
+\bibliographystyle{plain}
+\bibliography{literature.bib}
+
+\end{document}
