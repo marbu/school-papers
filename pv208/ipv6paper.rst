@@ -35,9 +35,9 @@ Unlike IPv4, this division can't be easily changed because it would break other 
 
 Some well known prefixes of unicast addresses are:
 
- * ``fe80::/10`` - link local addresses
- * ``fc00::/7`` - unique local addresses
- * ``2000::/3`` - global individual addresses
+* ``fe80::/10`` - link local addresses
+* ``fc00::/7`` - unique local addresses
+* ``2000::/3`` - global individual addresses
 
 Anycast
 -------
@@ -245,13 +245,13 @@ Description of the standard
 ---------------------------
 The main features of this protocol are as follows:
 
- * additional temporary address based on random *host id* (which replaces identifier based on the MAC address)
-   is created for each standard public address created
- * new random *host id* is regenerated on a periodic basis
- * the sequence of random *host id* is generated in unpredictable way
- * the random host id is used for all prefixes of the host reducing the
-   number of multicast groups to join (nevertheless there is also a way to
-   create different id for each prefix if needed)
+* additional temporary address based on random *host id* (which replaces identifier based on the MAC address)
+  is created for each standard public address created
+* new random *host id* is regenerated on a periodic basis
+* the sequence of random *host id* is generated in unpredictable way
+* the random host id is used for all prefixes of the host reducing the
+  number of multicast groups to join (nevertheless there is also a way to
+  create different id for each prefix if needed)
 
 How often should be a temporary address regenerated is a question of local
 policy and usual value of the lifetime ranges within hours to days.
@@ -286,18 +286,18 @@ Related problems
 ----------------
 Unfortunately the privacy extensions have several drawbacks:
 
- * Since temporary address is not stored in the DNS, it's not possible
-   to do a reverse DNS lookup which can cause problems because some servers
-   refuse to grant access to clients without proper DNS name.
-   Such application has to select public address instead (using already
-   mentioned new addrinfo flag).
-   Another solution would be to abandon this DNS check or to create temporary DNS
-   entries with random identifiers. But it's hard to guess
-   if any of these ways is viable and which solution will be accepted in the future.
- * Some applications suppose that all connections are made from the same source address.
- * The effort to protect privacy of individual nodes conflicts with the effort to
-   maintain and debug the whole network. Thus privacy extensions creates
-   additional requirements to network monitoring solutions.
+* Since temporary address is not stored in the DNS, it's not possible
+  to do a reverse DNS lookup which can cause problems because some servers
+  refuse to grant access to clients without proper DNS name.
+  Such application has to select public address instead (using already
+  mentioned new addrinfo flag).
+  Another solution would be to abandon this DNS check or to create temporary DNS
+  entries with random identifiers. But it's hard to guess
+  if any of these ways is viable and which solution will be accepted in the future.
+* Some applications suppose that all connections are made from the same source address.
+* The effort to protect privacy of individual nodes conflicts with the effort to
+  maintain and debug the whole network. Thus privacy extensions creates
+  additional requirements to network monitoring solutions.
 
 Because of wide range of issues, the latest RFC now recommends to disable the feature by default
 and most of the implementations follows this advice.
@@ -307,10 +307,11 @@ to use privacy extensions by default.
 State of the implementations
 ----------------------------
 The privacy extensions are supported by all major operating systems:
- * Linux
- * BSD family: FreeBSD, NetBSD, OpenBSD (since release 4.8)
- * MacOS X
- * Windows since Vista (support for version XP has been backported though)
+
+* Linux
+* BSD family: FreeBSD, NetBSD, OpenBSD (since release 4.8)
+* MacOS X
+* Windows since Vista (support for version XP has been backported though)
 
 The support among mobile phones and other portable machines which are more and more popular
 these days is also noteworthy because such devices naturally travels across many networks and

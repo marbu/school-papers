@@ -25,24 +25,24 @@ ipv6talk.pdf: ipv6talk.tex
 
 # paper
 
-ipv6paper.tar.gz: ipv6paper.txt Makefile ipv6paper.html
+ipv6paper.tar.gz: ipv6paper.rst Makefile ipv6paper.html
 	tar cfz $@ $^
 
 stat:
-	-wc ipv6paper.txt
+	-wc ipv6paper.rst
 
 paperpush: ipv6paper.html ipv6paper.tar.gz
 	scp $^ aisa:~/public_html/atol
 
 # docutils: general rules
 
-%.html: %.txt
+%.html: %.rst
 	$(RST2HTML) $^ > $@
 
-%.tex: %.txt
+%.tex: %.rst
 	$(RST2LATEX) --output-encoding=utf8 $^ > $@
 
-%.xml: %.txt
+%.xml: %.rst
 	$(RST2XML) $^ > $@
 
 %.pdf: %.tex
